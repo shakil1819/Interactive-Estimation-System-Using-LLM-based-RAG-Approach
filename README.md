@@ -61,7 +61,7 @@ The system is built using a modern stack:
 - **Backend**: FastAPI, Pydantic, Langchain, Langgraph, Uvicorn
 - **Frontend**: Streamlit
 - **State Management**: In-memory dictionary (for prototype simplicity)
-- **Language Model**: OpenAI GPT-4 (via Langchain)
+- **Language Model**: OpenAI GPT-4o (via Langchain)
 
 ### Component Overview
 
