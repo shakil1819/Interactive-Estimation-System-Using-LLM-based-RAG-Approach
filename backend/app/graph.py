@@ -34,7 +34,7 @@ class ExtractedInfo(BaseModel):
 
 
 # Initialize LLM
-llm = ChatOpenAI(api_key=OPENAI_API_KEY, model="gpt-4", temperature=0)
+llm = ChatOpenAI(api_key=OPENAI_API_KEY, model="gpt-4o", temperature=0)
 
 # Define extraction prompt
 extraction_prompt = ChatPromptTemplate.from_messages([
