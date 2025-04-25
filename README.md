@@ -5,7 +5,7 @@ A prototype interactive estimation system using FastAPI, Langgraph, and Streamli
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-
+![alt text](frontend/image/image-2.png)
 ## 📋 Features
 
 - **Conversational Flow**: Natural language conversation to gather project requirements
