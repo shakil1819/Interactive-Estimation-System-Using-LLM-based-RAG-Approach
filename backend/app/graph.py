@@ -277,7 +277,7 @@ def state_updater(state: GraphState) -> Dict[str, str]:
         return {"next": "question_generator"}
 
 
-def question_generator(state: GraphState) -> GraphState:
+def question_generator(state: GraphState) -> Dict[str, str]:
     """
     Generate the next question based on missing information.
     
@@ -310,7 +310,10 @@ def question_generator(state: GraphState) -> GraphState:
     # Add question to conversation history
     state.add_to_history("assistant", next_question)
     
-    return state
+    # End the graph execution after generating the question
+    # The user will start a new graph execution with their answer
+    print("Generated question, ending graph execution")
+    return {"next": END}
 
 
 def estimator_node(state: GraphState) -> GraphState:
@@ -432,8 +435,7 @@ def create_graph() -> StateGraph:
     graph.add_node("question_generator", question_generator)
     graph.add_node("estimator", estimator_node)
     graph.add_node("response_generator", response_generator)
-    
-    # Add edges
+      # Add edges
     graph.set_entry_point("start")
     graph.add_edge("start", "input_processor")
     graph.add_conditional_edges(
@@ -454,7 +456,8 @@ def create_graph() -> StateGraph:
             "question_generator": "question_generator"
         }
     )
-    graph.add_edge("question_generator", "input_processor")
+    # End after question_generator rather than cycling back to input_processor
+    graph.add_edge("question_generator", END)
     graph.add_edge("estimator", "response_generator")
     graph.add_edge("response_generator", END)
     
@@ -499,16 +502,22 @@ async def process_user_message(session_id: str, message: str, prev_state: Option
                 input_state.final_estimate = None
         # If we don't have a final estimate and the system said it's ready to prepare one, 
         # don't reset it (it will be generated in this run)
-    else:
-        # Create a brand new state if none exists
+    else:        # Create a brand new state if none exists
         input_state = GraphState(
             session_id=session_id,
             user_input=message
         )
     
     # Run the graph with increased recursion limit to prevent Graph Recursion Error
-    result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 100})
-    return result
+    try:
+        result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 250})
+        return result
+    except Exception as e:
+        # Log error but continue with input_state to prevent losing conversation
+        print(f"Error during graph execution: {e}")
+        # Add error message to conversation history
+        input_state.add_to_history("assistant", "I'm sorry, I encountered an error processing your request. Please try again.")
+        return input_state
 
 
 # Function to handle image upload
@@ -540,13 +549,19 @@ async def handle_image_upload(session_id: str, file_description: str, prev_state
         else:
             # Images might be for an existing estimate - don't reset unless necessary
             print("Keeping existing estimate while adding new image")
-    else:
-        # Create a brand new state if none exists
+    else:        # Create a brand new state if none exists
         input_state = GraphState(
             session_id=session_id,
             user_input=f"I've uploaded an image: {file_description}"
         )
     
     # Run the graph with increased recursion limit to prevent Graph Recursion Error
-    result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 100})
-    return result
+    try:
+        result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 250})
+        return result
+    except Exception as e:
+        # Log error but continue with input_state to prevent losing conversation
+        print(f"Error during graph execution: {e}")
+        # Add error message to conversation history
+        input_state.add_to_history("assistant", "I'm sorry, I encountered an error processing your image. Please try again.")
+        return input_state
