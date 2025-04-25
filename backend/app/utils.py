@@ -66,7 +66,7 @@ def format_estimate_for_display(estimate: Dict[str, Any]) -> str:
 
 def generate_next_question(missing_info: List[str], extracted_info: Dict[str, Any], has_estimate: bool = False, last_user_message: str = "") -> str:
     """
-    Generate the next question to ask based on missing information.
+    Generate the next question to ask based on missing information using an LLM.
     
     Args:
         missing_info: List of information fields that are still missing
@@ -77,39 +77,42 @@ def generate_next_question(missing_info: List[str], extracted_info: Dict[str, An
     Returns:
         Question string to ask the user
     """
-    # If we already have an estimate and get a new message, give a contextual response
-    if not missing_info:
-        if has_estimate:
-            # Provide appropriate responses based on the user's follow-up question
-            if last_user_message.lower() in ["hi", "hello", "hey"]:
-                return "Hello! Is there anything specific you'd like to know about your estimate?"
-            
-            if "thank" in last_user_message.lower():
-                return "You're welcome! If you have any other questions about your estimate or our services, feel free to ask."
-
-            if any(q in last_user_message.lower() for q in ["how long", "timeline", "when", "schedule"]):
-                return "Based on your selected timeline, we can typically schedule the work within our standard processing times. Would you like me to provide more details on scheduling?"
-            
-            if any(q in last_user_message.lower() for q in ["material", "quality", "brand"]):
-                return "We use high-quality materials from trusted suppliers. The estimate is based on the material type you've selected. Would you like more information about the specific brands we work with?"
-            
-            if any(q in last_user_message.lower() for q in ["warranty", "guarantee"]):
-                return "We offer a standard warranty on all our work. The exact terms depend on the service and materials selected. Would you like me to explain our warranty policy in more detail?"
-            
-            # Default response for other follow-ups
-            return "Thank you for your question. Is there anything specific about the estimate you'd like me to clarify or explain further?"
-        else:
-            return "I have all the information I need. Let me prepare your estimate."
+    from .llm_service import get_llm_response  # Import LLM service
     
-    # If there are missing fields, ask about the next one
-    next_field = missing_info[0]
+    # Prepare context for the LLM
+    context = {
+        "missing_info": missing_info,
+        "extracted_info": extracted_info,
+        "has_estimate": has_estimate,
+        "last_user_message": last_user_message
+    }
     
-    questions = {
+    # Define potential questions for reference
+    question_examples = {
         "service_type": "What type of service are you looking for? (e.g., roofing)",
         "square_footage": "What is the approximate square footage of the area?",
         "location": "In which region are you located? (Northeast, Midwest, South, or West)",
-        "material_type": "What type of material would you prefer? For roofing, options include asphalt, metal, tile, or slate.",
+        "material_type": "What type of material would you prefer?",
         "timeline": "What is your preferred timeline? (standard, expedited, or emergency)"
     }
     
-    return questions.get(next_field, f"Please provide information about {next_field.replace('_', ' ')}.")
+    # Generate prompt for the LLM
+    prompt = f"""
+    You are an assistant helping with a construction estimation system. Based on the following context:
+    
+    Missing information: {missing_info}
+    Information already collected: {extracted_info}
+    Has estimate: {has_estimate}
+    Last user message: "{last_user_message}"
+    
+    Generate an appropriate next question or response. If no information is missing and we have an estimate, 
+    respond to the user's message in a helpful way. If no information is missing and we don't have an estimate,
+    indicate we're ready to prepare an estimate. If information is missing, ask about the next needed field.
+    
+    Here are example questions for missing fields: {question_examples}
+    """
+    
+    # Get response from LLM
+    response = get_llm_response(prompt)
+    
+    return response

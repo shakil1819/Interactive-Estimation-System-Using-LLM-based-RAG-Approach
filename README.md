@@ -168,7 +168,9 @@ A few notable issues have been fixed in this version:
 
 ## 👥 Contributors
 
-- [Your Name](https://github.com/yourusername)
+- [Shakil Mosharrof](https://github.com/shakil1819)
+- Github Copilot
+- Windsurf IDE
 
 ## 🙏 Acknowledgments
 
