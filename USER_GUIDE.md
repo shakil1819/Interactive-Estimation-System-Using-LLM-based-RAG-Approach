@@ -91,3 +91,36 @@ If you want to get a new estimate:
 ## Need Help?
 
 If you have any questions or encounter issues while using the system, please refer to the documentation or contact support.
+
+## Troubleshooting
+
+### Common Issues
+
+**Long Processing Times**
+- The system may take a few seconds to process your input, especially when generating estimates.
+- This is normal behavior as the system carefully analyzes your information.
+
+**Session Timeout**
+- If you leave the application idle for too long, your session might expire.
+- Simply click "Start New Estimate" to begin a new session.
+
+**Image Upload Issues**
+- If image upload fails, check that your file is in a supported format (JPG, PNG, WebP).
+- Ensure the image size is under 5MB.
+- Try refreshing the page and uploading again.
+
+**Unexpected Responses**
+- If the system seems to ignore or misunderstand your input, try rephrasing your message.
+- Provide information one piece at a time if the system struggles with multiple details.
+
+**System Error Messages**
+- If you see an error message, refresh the page and try again.
+- If the issue persists, check your internet connection.
+- For recurring errors, please contact support with details about the error.
+
+### Tips for Best Results
+
+1. **Be Specific**: Provide clear, specific answers to questions.
+2. **Stay Focused**: Stick to information relevant to your project.
+3. **Review Before Finalizing**: Verify all information is correct before accepting an estimate.
+4. **Ask Questions**: If you're unsure about a term or request, ask the system for clarification.

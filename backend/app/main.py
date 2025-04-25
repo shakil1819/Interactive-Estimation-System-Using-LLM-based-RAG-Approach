@@ -49,7 +49,11 @@ async def create_new_session() -> Dict[str, str]:
     session_id = create_session()
     
     # Initialize the conversation by running the start node
-    state = await process_user_message(session_id, "")
+    result = await process_user_message(session_id, "")
+    
+    # Convert the result back to a GraphState object
+    # Langgraph returns an AddableValuesDict, not a GraphState
+    state = GraphState(**result)
     
     # Store the state
     sessions[session_id] = state
@@ -80,9 +84,12 @@ async def chat(input_data: ChatInput) -> ChatResponse:
     
     # Update user input in state
     state.user_input = message
+      # Process message through graph
+    result = await process_user_message(session_id, message)
     
-    # Process message through graph
-    updated_state = await process_user_message(session_id, message)
+    # Convert the result back to a GraphState object
+    # Langgraph returns an AddableValuesDict, not a GraphState
+    updated_state = GraphState(**result)
     
     # Update session state
     sessions[session_id] = updated_state
@@ -130,9 +137,12 @@ async def upload_file(upload_data: FileUpload) -> ChatResponse:
     # Check if session exists
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
+      # Process file upload through graph
+    result = await handle_image_upload(session_id, file_description)
     
-    # Process file upload through graph
-    updated_state = await handle_image_upload(session_id, file_description)
+    # Convert the result back to a GraphState object
+    # Langgraph returns an AddableValuesDict, not a GraphState
+    updated_state = GraphState(**result)
     
     # Update session state
     sessions[session_id] = updated_state

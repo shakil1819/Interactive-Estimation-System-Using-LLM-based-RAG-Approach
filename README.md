@@ -148,6 +148,20 @@ Potential enhancements:
 - **User Authentication**: Add user accounts and authentication
 - **Enhanced UI**: More interactive and responsive frontend
 
+## 🛠️ Known Issues & Solutions
+
+A few notable issues have been fixed in this version:
+
+1. **Recursion Limit Error**: Fixed by using `ainvoke()` instead of `invoke()` with a higher recursion limit.
+
+2. **Infinite Recursion Loop**: The graph was transitioning back to `input_processor` without waiting for new user input. 
+   Fixed by modifying the graph to end after generating a response.
+
+3. **Langgraph Return Type**: Fixed the issue where Langgraph returns `AddableValuesDict` instead of a `GraphState` object.
+   This is now properly converted using `GraphState(**result)`.
+
+4. **Pydantic Warnings**: Added filters to suppress PydanticSchemaJson warnings.
+
 ## 📝 License
 
 [MIT License](LICENSE)

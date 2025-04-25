@@ -23,4 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - N/A (Initial release)
 
 ### Fixed
-- N/A (Initial release)
+- Fixed recursion limit error in graph.py by changing `estimation_graph.invoke()` to `estimation_graph.ainvoke()` with a higher recursion limit
+- Fixed infinite recursion loop by modifying the graph to end after generating a response
+- Fixed AttributeError with Langgraph results by properly converting AddableValuesDict to GraphState objects
+- Added warning filters to suppress PydanticSchemaJson warnings
