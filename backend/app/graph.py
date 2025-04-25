@@ -7,6 +7,8 @@ from langchain_core.output_parsers import (
 )
 from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.language_models.fake import FakeListLLM
 
 from .config import OPENAI_API_KEY, ESTIMATION_CONFIG
 from .models import GraphState
@@ -33,91 +35,69 @@ class ExtractedInfo(BaseModel):
     )
 
 
-# Initialize LLM with a mock implementation for testing
-class MockLLM:
-    """Mock LLM for testing purposes"""
-    def __init__(self):
-        pass
+# Initialize LLM for development - using a fake LLM response for predictable behavior
+# In production, use OpenAI: llm = ChatOpenAI(api_key=OPENAI_API_KEY, model="gpt-4o", temperature=0)
+def extract_info_from_text(text):
+    """Extract information from text for our simple extraction"""
+    import re
+    
+    # Create default responses for each type of extraction
+    result = {"service_type": None, "square_footage": None, "location": None, 
+              "material_type": None, "timeline": None}
+    
+    text = text.lower()
+    
+    # Extract service type
+    if "roof" in text or "shingle" in text:
+        result["service_type"] = "roofing"
         
-    async def ainvoke(self, prompt, **kwargs):
-        """Mock invoke method that extracts information from the input"""
-        # If this is for structured output extraction, handle differently
-        if 'history' in prompt and 'input' in prompt:
-            return self._extract_info_from_input(prompt['input'])
-        elif isinstance(prompt, str):
-            return "I apologize, I don't have enough information to generate a comprehensive response."
-        else:
-            return ExtractedInfo()
-            
-    def with_structured_output(self, output_cls):
-        """Return self since we're mocking"""
-        return self
+    # Extract square footage
+    sq_ft_match = re.search(r'(\d+)\s*(?:sq\s*ft|square\s*feet|square\s*foot)', text)
+    if sq_ft_match:
+        result["square_footage"] = float(sq_ft_match.group(1))
         
-    def _extract_info_from_input(self, input_text):
-        """Extract information from user input"""
-        import re
+    # Extract location
+    for location in ["northeast", "midwest", "south", "west", "north east", "mid west"]:
+        if location in text:
+            result["location"] = location.replace(" ", "")
+            break
+            
+    # Try to extract location from city/state mentions
+    if "arizona" in text or "phoenix" in text:
+        result["location"] = "west"
         
-        # Convert input to lowercase for easier matching
-        text = input_text.lower()
-        
-        # Initialize result with all fields as None
-        result = ExtractedInfo()
-        
-        # Extract service type
-        if "roof" in text or "shingle" in text:
-            result.service_type = "roofing"
-            print("Extracted service_type: roofing")
+    # Extract material type
+    for material in ["asphalt", "metal", "tile", "slate", "shingles", "architectural"]:
+        if material in text:
+            if material == "architectural" or material == "shingles":
+                result["material_type"] = "asphalt"
+            else:
+                result["material_type"] = material
+            break
             
-        # Extract square footage
-        sq_ft_match = re.search(r'(\d+)\s*(?:sq\s*ft|square\s*feet|square\s*foot)', text)
-        if sq_ft_match:
-            result.square_footage = float(sq_ft_match.group(1))
-            print(f"Extracted square_footage: {result.square_footage}")
+    # Extract timeline
+    for timeline in ["standard", "expedited", "emergency", "rush", "urgent", "normal"]:
+        if timeline in text:
+            if timeline == "rush" or timeline == "urgent":
+                result["timeline"] = "expedited"
+            elif timeline == "normal":
+                result["timeline"] = "standard"
+            else:
+                result["timeline"] = timeline
+            break
             
-        # Extract location
-        for location in ["northeast", "midwest", "south", "west", "north east", "mid west"]:
-            if location in text:
-                result.location = location.replace(" ", "")
-                print(f"Extracted location: {result.location}")
-                break
-                
-        # Try to extract location from city/state mentions
-        if "arizona" in text or "phoenix" in text:
-            result.location = "west"
-            print("Extracted location from city/state: west")
-            
-        # Extract material type
-        for material in ["asphalt", "metal", "tile", "slate", "shingles", "architectural"]:
-            if material in text:
-                if material == "architectural" or material == "shingles":
-                    result.material_type = "asphalt"
-                else:
-                    result.material_type = material
-                print(f"Extracted material_type: {result.material_type}")
-                break
-                
-        # Extract timeline
-        for timeline in ["standard", "expedited", "emergency", "rush", "urgent", "normal"]:
-            if timeline in text:
-                if timeline == "rush" or timeline == "urgent":
-                    result.timeline = "expedited"
-                elif timeline == "normal":
-                    result.timeline = "standard"
-                else:
-                    result.timeline = timeline
-                print(f"Extracted timeline: {result.timeline}")
-                break
-                
-        # If standard timeline can be inferred
-        if result.timeline is None and "regular" in text:
-            result.timeline = "standard"
-            print("Inferred timeline: standard")
-            
-        print(f"Extracted information: {result}")
-        return result
+    # If standard timeline can be inferred
+    if result["timeline"] is None and "regular" in text:
+        result["timeline"] = "standard"
+    
+    return result
 
-# Use mock LLM for testing
-llm = MockLLM()
+# Create a simple function to format extraction responses
+def format_extraction_response(inputs):
+    extraction = extract_info_from_text(inputs.get("input", ""))
+    result = ExtractedInfo(**extraction)
+    print(f"Extracted information: {result}")
+    return result
 
 # Define extraction prompt
 extraction_prompt = ChatPromptTemplate.from_messages([
@@ -128,11 +108,8 @@ extraction_prompt = ChatPromptTemplate.from_messages([
     ("human", "{input}")
 ])
 
-# Create extraction chain
-extraction_chain = (
-    extraction_prompt
-    | llm.with_structured_output(ExtractedInfo)
-)
+# Create extraction chain - using a simple passthrough for development
+extraction_chain = RunnablePassthrough() | format_extraction_response
 
 
 # Define graph nodes
