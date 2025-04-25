@@ -68,12 +68,11 @@ def format_estimate_for_display(estimate: Dict[str, Any]) -> str:
         f"- **Material Cost**: ${estimate['material_cost']:,.2f}\n"
         f"- **Regional Adjustment**: ${estimate['region_adjustment']:,.2f}\n"
         f"- **Timeline Adjustment**: ${estimate['timeline_adjustment']:,.2f}\n"
-        f"- **Permit Fee**: ${estimate['permit_fee']:,.2f}\n"        f"\n## Total Estimate: ${estimate['total_estimate']:,.2f}\n"
+        f"- **Permit Fee**: ${estimate['permit_fee']:,.2f}\n"
+        f"\n## Total Estimate: ${estimate['total_estimate']:,.2f}\n"
         f"## Price Range: ${estimate['price_range_low']:,.2f} - ${estimate['price_range_high']:,.2f}\n\n"
         f"*Note: This is a preliminary estimate and may change based on final inspection.*"
     )
-    
-    return formatted
     
     return formatted
 

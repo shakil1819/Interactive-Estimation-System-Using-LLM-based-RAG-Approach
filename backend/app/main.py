@@ -193,13 +193,13 @@ async def get_conversation(session_id: str) -> Dict[str, Any]:
     
     # Get session state
     state = sessions[session_id]
-    
     return {
         "session_id": session_id,
         "conversation_history": state.conversation_history,
         "extracted_info": state.extracted_info,
         "missing_info": get_missing_info(state.required_info, state.extracted_info),
-        "final_estimate": state.final_estimate
+        "final_estimate": state.final_estimate,
+        "estimate": state.final_estimate  # Include duplicate with 'estimate' key for consistency
     }
 
 
