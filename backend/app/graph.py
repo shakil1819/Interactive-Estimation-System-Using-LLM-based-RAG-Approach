@@ -178,10 +178,26 @@ def state_updater(state: GraphState) -> Dict[str, str]:
     # Check if we have all required information
     missing_info = get_missing_info(state.required_info, state.extracted_info)
     
-    if not missing_info:
+    # If we already have an estimate and the user sends a general inquiry without
+    # providing new information, route to question generator instead of re-calculating estimate
+    if not missing_info and state.final_estimate:
+        # Only regenerate estimate if explicitly requested
+        estimate_keywords = ["new estimate", "recalculate", "update estimate", "different materials", "change"]
+        if any(keyword in state.conversation_history[-1]["content"].lower() for keyword in estimate_keywords):
+            # Clear the existing estimate to regenerate it
+            state.final_estimate = None
+            state.next = "estimator"
+            return {"next": "estimator"}
+        else:
+            # Otherwise, just provide a response to the follow-up question
+            state.next = "question_generator"
+            return {"next": "question_generator"}
+    elif not missing_info:
+        # If we don't have an estimate yet but have all required info, generate one
         state.next = "estimator"
         return {"next": "estimator"}
     else:
+        # Missing info, ask questions
         state.next = "question_generator"
         return {"next": "question_generator"}
 
@@ -199,8 +215,21 @@ def question_generator(state: GraphState) -> GraphState:
     # Get missing information
     missing_info = get_missing_info(state.required_info, state.extracted_info)
     
-    # Generate next question
-    next_question = generate_next_question(missing_info, state.extracted_info)
+    # Get the last user message for context in responses
+    last_user_message = ""
+    for message in reversed(state.conversation_history):
+        if message["role"] == "user":
+            last_user_message = message["content"]
+            break
+    
+    # Generate next question - pass flag indicating if we already have an estimate
+    has_estimate = state.final_estimate is not None
+    next_question = generate_next_question(
+        missing_info, 
+        state.extracted_info, 
+        has_estimate,
+        last_user_message
+    )
     state.current_question = next_question
     
     # Add question to conversation history
@@ -320,13 +349,14 @@ estimation_graph = create_graph()
 
 
 # Function to process user message and get response
-async def process_user_message(session_id: str, message: str) -> GraphState:
+async def process_user_message(session_id: str, message: str, prev_state: Optional[GraphState] = None) -> GraphState:
     """
     Process a user message through the graph.
     
     Args:
         session_id: The session ID
         message: The user's message
+        prev_state: Optional previous graph state to preserve context
         
     Returns:
         Updated graph state after processing the message
@@ -335,11 +365,21 @@ async def process_user_message(session_id: str, message: str) -> GraphState:
         The graph execution terminates after generating a response.
         Each user message starts a new graph execution with persisted state.
     """
-    # Create initial state or use existing state
-    input_state = GraphState(
-        session_id=session_id,
-        user_input=message
-    )
+    # Either use previous state or create a new one
+    if prev_state:
+        # Use the previous state but update the user input
+        input_state = prev_state.copy()
+        input_state.user_input = message
+        
+        # Reset final_estimate to None to ensure we don't keep showing the same estimate
+        if "I have all the information I need" not in message:
+            input_state.final_estimate = None
+    else:
+        # Create a brand new state if none exists
+        input_state = GraphState(
+            session_id=session_id,
+            user_input=message
+        )
     
     # Run the graph with increased recursion limit to prevent Graph Recursion Error
     result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 100})
@@ -347,13 +387,14 @@ async def process_user_message(session_id: str, message: str) -> GraphState:
 
 
 # Function to handle image upload
-async def handle_image_upload(session_id: str, file_description: str) -> GraphState:
+async def handle_image_upload(session_id: str, file_description: str, prev_state: Optional[GraphState] = None) -> GraphState:
     """
     Handle an image upload event.
     
     Args:
         session_id: The session ID
         file_description: Description of the uploaded file
+        prev_state: Optional previous graph state to preserve context
         
     Returns:
         Updated graph state after processing the image upload
@@ -362,11 +403,20 @@ async def handle_image_upload(session_id: str, file_description: str) -> GraphSt
         The graph execution terminates after generating a response.
         Each user interaction starts a new graph execution with persisted state.
     """
-    # Create input state with image upload message
-    input_state = GraphState(
-        session_id=session_id,
-        user_input=f"I've uploaded an image: {file_description}"
-    )
+    # Either use previous state or create a new one
+    if prev_state:
+        # Use the previous state but update the user input
+        input_state = prev_state.copy()
+        input_state.user_input = f"I've uploaded an image: {file_description}"
+        
+        # Reset final_estimate to None to ensure we don't keep showing the same estimate
+        input_state.final_estimate = None
+    else:
+        # Create a brand new state if none exists
+        input_state = GraphState(
+            session_id=session_id,
+            user_input=f"I've uploaded an image: {file_description}"
+        )
     
     # Run the graph with increased recursion limit to prevent Graph Recursion Error
     result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 100})

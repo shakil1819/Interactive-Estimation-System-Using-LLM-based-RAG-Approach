@@ -27,3 +27,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed infinite recursion loop by modifying the graph to end after generating a response
 - Fixed AttributeError with Langgraph results by properly converting AddableValuesDict to GraphState objects
 - Added warning filters to suppress PydanticSchemaJson warnings
+- Fixed issue where system kept repeating "I have all the information I need" by preserving previous state and adding contextual follow-up responses
+- Improved state handling and preservation between graph executions

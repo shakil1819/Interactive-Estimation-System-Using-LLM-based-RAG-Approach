@@ -78,14 +78,14 @@ async def chat(input_data: ChatInput) -> ChatResponse:
     # Check if session exists
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-    
-    # Get session state
+      # Get session state
     state = sessions[session_id]
     
     # Update user input in state
     state.user_input = message
-      # Process message through graph
-    result = await process_user_message(session_id, message)
+    
+    # Process message through graph with previous state
+    result = await process_user_message(session_id, message, state)
     
     # Convert the result back to a GraphState object
     # Langgraph returns an AddableValuesDict, not a GraphState
@@ -133,12 +133,15 @@ async def upload_file(upload_data: FileUpload) -> ChatResponse:
     """
     session_id = upload_data.session_id
     file_description = upload_data.file_description
-    
-    # Check if session exists
+      # Check if session exists
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-      # Process file upload through graph
-    result = await handle_image_upload(session_id, file_description)
+    
+    # Get the existing state
+    state = sessions[session_id]
+      
+    # Process file upload through graph with previous state
+    result = await handle_image_upload(session_id, file_description, state)
     
     # Convert the result back to a GraphState object
     # Langgraph returns an AddableValuesDict, not a GraphState

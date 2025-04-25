@@ -18,6 +18,10 @@
    - Problem: Annoying warnings appearing during program execution
    - Fix: Added warning filters to suppress these warnings using the `warnings` module
 
+5. **Repetitive Response Issue**
+   - Problem: System kept repeating "I have all the information I need" even after receiving an estimate
+   - Fix: Improved state handling between messages and added contextual follow-up responses
+
 ## Files Modified
 
 1. **backend/app/graph.py**
@@ -25,11 +29,68 @@
    - Changed graph configuration to terminate at the end instead of looping
    - Updated `process_user_message` and `handle_image_upload` functions to use `ainvoke` with proper recursion limits
    - Fixed imports and docstrings
+   - Updated state_updater logic to handle follow-up questions after estimate
+   - Enhanced question_generator to provide contextual responses
 
 2. **backend/app/main.py**
    - Added proper conversion from `AddableValuesDict` to `GraphState`
    - Added import for warnings module and filters
+   - Updated chat and upload endpoints to pass previous state to graph functions
    - Added missing imports
+
+3. **backend/app/utils.py**
+   - Enhanced generate_next_question to provide contextual responses for follow-up questions
+   - Added logic to detect when we already have an estimate to avoid repetitive responses
+
+4. **backend/app/models.py**
+   - Added copy method to GraphState for proper state preservation
+   - Fixed typing for optional fields
+
+5. **frontend/app.py**
+   - Added warning filters
+
+6. **backend/app/__init__.py**
+   - Added warning filters at the application level
+
+7. **run.py**, **run.sh**, **run.ps1**
+   - Added environment variable settings for warning suppression
+
+8. **docker-compose.yml**
+   - Updated environment variables for warning suppression
+
+9. **Documentation files**
+   - Updated ARCHITECTURE.md with technical details
+   - Updated USER_GUIDE.md with troubleshooting section
+   - Updated EXTENDING.md with Langgraph best practices
+   - Updated README.md with known issues section
+   - Updated CHANGELOG.md with fixes
+
+## Key Takeaways for Developers
+
+1. **Graph Termination**
+   - Always make sure your graph reaches a proper end state
+   - For conversation systems, end the graph after generating a response and start a new execution for each user input
+
+2. **State Preservation**
+   - Always preserve previous state between graph executions
+   - Use a copy method or deep copy to ensure state is properly cloned
+   - Properly merge new user input with existing state
+
+3. **State Conversion**
+   - Remember to convert Langgraph's `AddableValuesDict` output back to your state class
+   - Use `YourStateClass(**result)` pattern for proper conversion
+
+4. **Recursion Control**
+   - Use `ainvoke()` instead of `invoke()` when possible
+   - Set appropriate recursion limits based on your graph complexity
+   - Check for cycles that could cause infinite recursion
+
+5. **Contextual Responses**
+   - Store conversation history and use it to provide relevant responses
+   - Avoid repeating the same message when context has changed
+   - Handle follow-up questions appropriately after completing the main flow
+
+These changes should make the Interactive Estimation System more robust and prevent the most common issues developers might encounter.
 
 3. **frontend/app.py**
    - Added warning filters

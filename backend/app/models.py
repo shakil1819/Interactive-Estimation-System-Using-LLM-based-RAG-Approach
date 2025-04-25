@@ -33,6 +33,21 @@ class GraphState(BaseModel):
             "role": role,
             "content": content
         })
+    
+    def copy(self) -> 'GraphState':
+        """Create a copy of the current state."""
+        return GraphState(
+            session_id=self.session_id,
+            conversation_history=self.conversation_history.copy(),
+            user_input=self.user_input,
+            extracted_info=self.extracted_info.copy(),
+            required_info=self.required_info.copy(),
+            current_question=self.current_question,
+            image_references=self.image_references.copy(),
+            final_estimate=self.final_estimate.copy() if self.final_estimate else None,
+            service_config=self.service_config.copy(),
+            next=self.next
+        )
 
 
 class ChatResponse(BaseModel):

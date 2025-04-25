@@ -64,20 +64,44 @@ def format_estimate_for_display(estimate: Dict[str, Any]) -> str:
     return formatted
 
 
-def generate_next_question(missing_info: List[str], extracted_info: Dict[str, Any]) -> str:
+def generate_next_question(missing_info: List[str], extracted_info: Dict[str, Any], has_estimate: bool = False, last_user_message: str = "") -> str:
     """
     Generate the next question to ask based on missing information.
     
     Args:
         missing_info: List of information fields that are still missing
         extracted_info: Dictionary of information that has been extracted
+        has_estimate: Boolean indicating if we already have an estimate
+        last_user_message: The last message from the user (for contextual responses)
         
     Returns:
         Question string to ask the user
     """
+    # If we already have an estimate and get a new message, give a contextual response
     if not missing_info:
-        return "I have all the information I need. Let me prepare your estimate."
+        if has_estimate:
+            # Provide appropriate responses based on the user's follow-up question
+            if last_user_message.lower() in ["hi", "hello", "hey"]:
+                return "Hello! Is there anything specific you'd like to know about your estimate?"
+            
+            if "thank" in last_user_message.lower():
+                return "You're welcome! If you have any other questions about your estimate or our services, feel free to ask."
+
+            if any(q in last_user_message.lower() for q in ["how long", "timeline", "when", "schedule"]):
+                return "Based on your selected timeline, we can typically schedule the work within our standard processing times. Would you like me to provide more details on scheduling?"
+            
+            if any(q in last_user_message.lower() for q in ["material", "quality", "brand"]):
+                return "We use high-quality materials from trusted suppliers. The estimate is based on the material type you've selected. Would you like more information about the specific brands we work with?"
+            
+            if any(q in last_user_message.lower() for q in ["warranty", "guarantee"]):
+                return "We offer a standard warranty on all our work. The exact terms depend on the service and materials selected. Would you like me to explain our warranty policy in more detail?"
+            
+            # Default response for other follow-ups
+            return "Thank you for your question. Is there anything specific about the estimate you'd like me to clarify or explain further?"
+        else:
+            return "I have all the information I need. Let me prepare your estimate."
     
+    # If there are missing fields, ask about the next one
     next_field = missing_info[0]
     
     questions = {
