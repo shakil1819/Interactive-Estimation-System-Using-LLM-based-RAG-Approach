@@ -136,7 +136,6 @@ To add new service types:
 This prototype has several limitations that could be addressed in future versions:
 
 - **State Management**: Currently uses in-memory storage, which is not persistent
-- **Image Analysis**: Only tracks image uploads without actual analysis
 - **Error Handling**: Basic error handling implemented
 - **Service Types**: Currently focused on roofing; could be expanded
 
