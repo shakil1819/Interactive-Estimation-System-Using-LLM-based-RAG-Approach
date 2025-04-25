@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  app:
+    build: .
+    environment:
+      - PYTHONWARNINGS=ignore::UserWarning:pydantic,ignore::UserWarning:pydantic.json_schema,ignore::DeprecationWarning:pydantic
+    ports:
+      - "8000:8000"
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    restart: unless-stopped
