@@ -239,13 +239,13 @@ def estimator_node(state: GraphState) -> GraphState:
 
 def response_generator(state: GraphState) -> Dict[str, str]:
     """
-    Generate the final response and determine if the conversation is complete.
+    Generate the final response and end the conversation flow.
     
     Args:
         state: The current graph state
         
     Returns:
-        Dictionary indicating whether to end the conversation
+        Dictionary indicating to end the conversation
     """
     if state.final_estimate:
         # Format the estimate for display
@@ -260,14 +260,10 @@ def response_generator(state: GraphState) -> Dict[str, str]:
             "Is there anything else you'd like to know about this estimate?"
         )
         state.add_to_history("assistant", closing_message)
-        
-        # Return to input processor for any follow-up questions
-        state.next = "input_processor"
-        return {"next": "input_processor"}
     
-    # If no estimate yet, continue the conversation
-    state.next = "input_processor"
-    return {"next": "input_processor"}
+    # End the graph execution after response is generated
+    # New user inputs will start fresh graph executions
+    return {"next": END}
 
 
 # Create the graph
@@ -313,13 +309,7 @@ def create_graph() -> StateGraph:
     )
     graph.add_edge("question_generator", "input_processor")
     graph.add_edge("estimator", "response_generator")
-    graph.add_conditional_edges(
-        "response_generator",
-        lambda state: state.next,
-        {
-            "input_processor": "input_processor"
-        }
-    )
+    graph.add_edge("response_generator", END)
     
     # Compile the graph
     return graph.compile()
@@ -340,14 +330,19 @@ async def process_user_message(session_id: str, message: str) -> GraphState:
         
     Returns:
         Updated graph state after processing the message
-    """    # Create initial state or use existing state
+        
+    Note:
+        The graph execution terminates after generating a response.
+        Each user message starts a new graph execution with persisted state.
+    """
+    # Create initial state or use existing state
     input_state = GraphState(
         session_id=session_id,
         user_input=message
     )
     
-    # Run the graph with a higher recursion limit to prevent GRAPH_RECURSION_LIMIT errors
-    result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 10000})
+    # Run the graph with increased recursion limit to prevent Graph Recursion Error
+    result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 100})
     return result
 
 
@@ -362,12 +357,17 @@ async def handle_image_upload(session_id: str, file_description: str) -> GraphSt
         
     Returns:
         Updated graph state after processing the image upload
+        
+    Note:
+        The graph execution terminates after generating a response.
+        Each user interaction starts a new graph execution with persisted state.
     """
     # Create input state with image upload message
     input_state = GraphState(
         session_id=session_id,
         user_input=f"I've uploaded an image: {file_description}"
     )
-      # Run the graph with increased recursion limit to prevent Graph Recursion Error
+    
+    # Run the graph with increased recursion limit to prevent Graph Recursion Error
     result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 100})
     return result
