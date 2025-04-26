@@ -60,7 +60,7 @@ def test_format_estimate_for_display():
     
     # Check that the formatted string contains key information
     assert "Estimate for Roofing Service" in formatted
-    assert "Square Footage: 1000" in formatted
+    assert "Square Footage: 1000 sq ft" in formatted # Modified to match actual output
     assert "Location: Northeast" in formatted
     assert "Material: Metal" in formatted
     assert "Timeline: Standard" in formatted
