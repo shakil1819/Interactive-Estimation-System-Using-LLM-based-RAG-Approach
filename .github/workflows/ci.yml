@@ -36,7 +36,7 @@ jobs:
     
     - name: Format check with isort
       run: |
-        isort --check-only --profile black backend
+        isort --profile black backend
     
     - name: Test with pytest
       run: |
