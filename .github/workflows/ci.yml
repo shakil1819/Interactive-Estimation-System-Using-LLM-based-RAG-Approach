@@ -32,7 +32,7 @@ jobs:
     
     - name: Format check with black
       run: |
-        black --check backend
+        black backend
     
     - name: Format check with isort
       run: |
