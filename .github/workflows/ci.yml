@@ -40,7 +40,8 @@ jobs:
     - name: Format check with isort
       run: |
         isort --profile black backend
-      - name: Test with pytest
+        
+    - name: Test with pytest
       run: |
         # Run tests that we know will pass
         pytest backend/tests/test_app.py backend/tests/test_estimator.py backend/tests/test_models.py
