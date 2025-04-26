@@ -38,7 +38,7 @@ class ExtractedInfo(BaseModel):
 # Initialize LLM for development - using a fake LLM response for predictable behavior
 # In production, use OpenAI: llm = ChatOpenAI(api_key=OPENAI_API_KEY, model="gpt-4o", temperature=0)
 def extract_info_from_text(text):
-    """Extract information from text for our simple extraction"""
+    """Extract information from text using more robust pattern matching"""
     import re
     
     # Create default responses for each type of extraction
@@ -47,69 +47,130 @@ def extract_info_from_text(text):
     
     text = text.lower()
     
-    # Extract service type
-    if "roof" in text or "shingle" in text:
+    # Extract service type with more specific patterns
+    if re.search(r'\b(roof|roofing|shingles?)\b', text):
         result["service_type"] = "roofing"
-        
-    # Extract square footage
-    sq_ft_match = re.search(r'(\d+)\s*(?:sq\s*ft|square\s*feet|square\s*foot)', text)
+    elif re.search(r'\b(siding|exterior|cladding)\b', text):
+        result["service_type"] = "siding"
+    
+    # Check if user mentioned square footage or area with better pattern matching
+    # Look for various formats like 1500 sq ft, 1,500 square feet, etc.
+    sq_ft_match = re.search(r'(\d[\d,]*)\s*(?:sq\.?\s*ft\.?|square\s*feet|square\s*foot|sq(?:\s*\.)?(?:\s*footage)?)', text)
     if sq_ft_match:
-        result["square_footage"] = float(sq_ft_match.group(1))
-        
-    # Extract location
-    for location in ["northeast", "midwest", "south", "west", "north east", "mid west"]:
-        if location in text:
-            result["location"] = location.replace(" ", "")
+        # Remove commas and convert to float
+        square_footage = sq_ft_match.group(1).replace(',', '')
+        result["square_footage"] = float(square_footage)
+    
+    # Also check for just numbers that might be square footage
+    # Only match if it's likely to be square footage (between 500-10000 for typical roof sizes)
+    if result["square_footage"] is None:
+        size_matches = re.findall(r'\b(\d{3,5})\b', text)  # Look for 3-5 digit numbers
+        for match in size_matches:
+            num = int(match)
+            # Fix the parenthesis issue in the condition
+            if 500 <= num <= 10000 and (('feet' in text) or ('foot' in text) or ('footage' in text) or ('area' in text) or ('size' in text)):
+                result["square_footage"] = float(num)
+                print(f"Extracted square footage from number: {num}")
+                break
+    
+    # Extract location with better region detection
+    region_patterns = {
+        "northeast": [r'\b(north\s*east|northeastern|new\s*england|ny|ma|ct|ri|vt|nh|me|new\s*york|massachusetts|connecticut|rhode\s*island|vermont|new\s*hampshire|maine)\b'],
+        "midwest": [r'\b(mid\s*west|midwest|oh|mi|in|il|wi|mn|ia|mo|nd|sd|ne|ks|ohio|michigan|indiana|illinois|wisconsin|minnesota|iowa|missouri|north\s*dakota|south\s*dakota|nebraska|kansas)\b'],
+        "south": [r'\b(south|southeastern|tx|ok|ar|la|ms|al|tn|ky|fl|ga|sc|nc|va|wv|md|de|dc|texas|oklahoma|arkansas|louisiana|mississippi|alabama|tennessee|kentucky|florida|georgia|south\s*carolina|north\s*carolina|virginia|west\s*virginia|maryland|delaware)\b'],
+        "west": [r'\b(west|western|ca|or|wa|nv|id|mt|wy|ut|co|az|nm|hi|ak|california|oregon|washington|nevada|idaho|montana|wyoming|utah|colorado|arizona|new\s*mexico|hawaii|alaska)\b']
+    }
+    
+    for region, patterns in region_patterns.items():
+        for pattern in patterns:
+            if re.search(pattern, text):
+                result["location"] = region
+                break
+        if result["location"]:
             break
-            
-    # Try to extract location from city/state mentions
-    if "arizona" in text or "phoenix" in text:
-        result["location"] = "west"
-        
-    # Extract material type
-    for material in ["asphalt", "metal", "tile", "slate", "shingles", "architectural"]:
-        if material in text:
-            if material == "architectural" or material == "shingles":
-                result["material_type"] = "asphalt"
-            else:
+    
+    # Extract material type with better pattern matching
+    material_patterns = {
+        "asphalt": [r'\b(asphalt|composite|shingles?|architectural)\b'],
+        "metal": [r'\b(metal|steel|aluminum|tin|copper)\b'],
+        "tile": [r'\b(tile|clay|ceramic|terracotta|concrete\s*tile)\b'],
+        "slate": [r'\b(slate|stone|natural\s*slate)\b']
+    }
+    
+    for material, patterns in material_patterns.items():
+        for pattern in patterns:
+            if re.search(pattern, text):
                 result["material_type"] = material
+                break
+        if result["material_type"]:
             break
-            
-    # Extract timeline
-    for timeline in ["standard", "expedited", "emergency", "rush", "urgent", "normal"]:
-        if timeline in text:
-            if timeline == "rush" or timeline == "urgent":
-                result["timeline"] = "expedited"
-            elif timeline == "normal":
-                result["timeline"] = "standard"
-            else:
+    
+    # Extract timeline with better pattern matching
+    timeline_patterns = {
+        "standard": [r'\b(standard|normal|regular|usual|typical|60\s*days|2\s*months)\b'],
+        "expedited": [r'\b(expedited|rush|urgent|quick|soon|30\s*days|1\s*month)\b'],
+        "emergency": [r'\b(emergency|immediate|right\s*away|asap|as\s*soon\s*as\s*possible|immediately|7\s*days|week)\b']
+    }
+    
+    for timeline, patterns in timeline_patterns.items():
+        for pattern in patterns:
+            if re.search(pattern, text):
                 result["timeline"] = timeline
+                break
+        if result["timeline"]:
             break
-            
-    # If standard timeline can be inferred
-    if result["timeline"] is None and "regular" in text:
-        result["timeline"] = "standard"
+    
+    # Look for numerical values in responses
+    # This helps with extracting values when users just respond with a number
+    numerical_response_match = re.match(r'^\s*(\d[\d,]*)\s*$', text.strip())
+    if numerical_response_match and not result["square_footage"]:
+        result["square_footage"] = float(numerical_response_match.group(1).replace(',', ''))
     
     return result
 
-# Create a simple function to format extraction responses
+# Create a function to format extraction responses that considers both user input and context
 def format_extraction_response(inputs):
-    extraction = extract_info_from_text(inputs.get("input", ""))
+    # Get the current input and the history
+    current_input = inputs.get("input", "")
+    history = inputs.get("history", [])
+    
+    # Combine the current message with context from recent history for better extraction
+    context = ""
+    if history:
+        # Get up to the last 3 exchanges for context
+        recent_history = history[-6:] if len(history) > 6 else history
+        for msg in recent_history:
+            role = "User" if isinstance(msg, HumanMessage) else "Assistant"
+            context += f"{role}: {msg.content}\n"
+    
+    # Combine context with current input for better extraction
+    full_text = f"{context}\nCurrent User Input: {current_input}"
+    
+    # Extract information from the combined text
+    extraction = extract_info_from_text(full_text)
     result = ExtractedInfo(**extraction)
-    print(f"Extracted information: {result}")
+    print(f"Extracted information from user input: {result}")
     return result
 
-# Define extraction prompt
+# Define extraction prompt - using a more detailed system prompt
 extraction_prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are an assistant that extracts information for a service estimation system. "
-              "Extract only the information provided by the user. "
-              "If the information is not provided, leave the field as null."),
+    ("system", "You are an assistant that extracts specific information for a construction estimation system. "
+              "Extract ONLY the information explicitly provided by the user in their latest message. "
+              "Pay special attention to numbers, measurements, regions, and material types. "
+              "For square footage, extract any numerical values followed by sq ft, square feet, etc. "
+              "For location, identify regions like northeast, midwest, south, west, or specific states/cities. "
+              "For materials, look for specific mentions of asphalt, metal, tile, slate, etc. "
+              "For timeline, identify standard, expedited, emergency, or similar terms. "
+              "If any information is not clearly provided in the current message, leave that field as null."),
     MessagesPlaceholder(variable_name="history"),
     ("human", "{input}")
 ])
 
-# Create extraction chain - using a simple passthrough for development
-extraction_chain = RunnablePassthrough() | format_extraction_response
+# Create a more robust extraction chain that processes both history and input
+extraction_chain = RunnablePassthrough.assign(
+    history=lambda x: x.get("history", []),
+    input=lambda x: x.get("input", "")
+) | format_extraction_response
 
 
 # Define graph nodes
@@ -184,12 +245,51 @@ def image_handler_node(state: GraphState) -> GraphState:
     Returns:
         Updated graph state
     """
-    # Add confirmation message
-    confirmation = "I've received your image. This will help with the estimation process."
-    state.add_to_history("assistant", confirmation)
+    from .llm_service import analyze_image, extract_info_from_image_analysis
     
-    # Add a reference to the image (in a real system, this would store actual image data or references)
-    state.image_references.append(f"image_{len(state.image_references) + 1}")
+    # Get the latest image reference - this would be set in the handle_image_upload function
+    latest_image_ref = state.image_references[-1] if state.image_references else None
+    latest_image_data = None
+    
+    # In a real system, we would retrieve the base64 data for the image here
+    # For now, we'll assume it's passed in the state's image_analysis with the key being the image reference
+    if latest_image_ref and latest_image_ref in state.image_analysis and "base64_data" in state.image_analysis[latest_image_ref]:
+        latest_image_data = state.image_analysis[latest_image_ref]["base64_data"]
+        
+        # Only analyze if we have image data
+        if latest_image_data:
+            # Analyze the image using GPT-4o
+            analysis = analyze_image(latest_image_data, latest_image_ref)
+            
+            # Store the analysis
+            if latest_image_ref not in state.image_analysis:
+                state.image_analysis[latest_image_ref] = {}
+            state.image_analysis[latest_image_ref]["analysis"] = analysis
+            
+            # Extract structured information from the analysis
+            extracted_info = extract_info_from_image_analysis(analysis)
+            
+            # Update the state's extracted info with information from the image
+            for key, value in extracted_info.items():
+                if value is not None and (key not in state.extracted_info or state.extracted_info[key] is None):
+                    state.extracted_info[key] = value
+                    print(f"Extracted {key}: {value} from image analysis")
+            
+            # Add the analysis to the conversation history
+            summary = f"I've analyzed your image and found the following: {analysis}"
+            state.add_to_history("assistant", summary)
+        else:
+            # Add a generic confirmation if no image data
+            confirmation = "I've received your image, but couldn't analyze it. Please make sure it's a valid image format."
+            state.add_to_history("assistant", confirmation)
+    else:
+        # Add a generic confirmation if no image reference or data
+        confirmation = "I've received your image. This will help with the estimation process."
+        state.add_to_history("assistant", confirmation)
+        
+        # Add a reference to the image (this will be used as a placeholder)
+        if not latest_image_ref:
+            state.image_references.append(f"image_{len(state.image_references) + 1}")
     
     return state
 
@@ -204,6 +304,10 @@ def information_extractor(state: GraphState) -> GraphState:
     Returns:
         Updated graph state with extracted information
     """
+    # Skip extraction if user input is empty
+    if not state.user_input.strip():
+        return state
+    
     # Create conversation history
     history = []
     for message in state.conversation_history:
@@ -212,16 +316,98 @@ def information_extractor(state: GraphState) -> GraphState:
         else:
             history.append(HumanMessage(content=message["content"]))
     
-    # Extract information using LLM
+    # Store the most recent question asked to provide context
+    last_question = ""
+    for i in range(len(state.conversation_history) - 1, -1, -1):
+        if state.conversation_history[i]["role"] == "assistant":
+            last_question = state.conversation_history[i]["content"]
+            break
+    
+    # Determine if this is answering a specific question
+    field_to_update = None
+    if "square footage" in last_question.lower() or "area" in last_question.lower() or "how large" in last_question.lower():
+        field_to_update = "square_footage"
+    elif "location" in last_question.lower() or "region" in last_question.lower() or "where" in last_question.lower():
+        field_to_update = "location"
+    elif "material" in last_question.lower() or "type of" in last_question.lower():
+        field_to_update = "material_type"
+    elif "timeline" in last_question.lower() or "how soon" in last_question.lower() or "when" in last_question.lower():
+        field_to_update = "timeline"
+    
+    # For very simple responses that might just contain a value, try direct extraction
+    if field_to_update and len(state.user_input.strip().split()) <= 3:
+        # Try to directly extract the value if it's a simple response
+        value = None
+        simple_input = state.user_input.strip().lower()
+        
+        # Direct mapping for common inputs
+        if field_to_update == "location":
+            for region in ["northeast", "midwest", "south", "west", "north east", "mid west"]:
+                if region in simple_input:
+                    value = region.replace(" ", "")
+                    break
+            # Regional shorthand
+            if not value:
+                if any(x in simple_input for x in ["ne", "east coast", "ma", "ny"]):
+                    value = "northeast"
+                elif any(x in simple_input for x in ["mw", "middle", "central", "oh", "il"]):
+                    value = "midwest"
+                elif any(x in simple_input for x in ["s", "southeast", "fl", "tx", "ga"]):
+                    value = "south"
+                elif any(x in simple_input for x in ["w", "ca", "west coast", "pacific", "az"]):
+                    value = "west"
+        
+        elif field_to_update == "material_type":
+            for material in ["asphalt", "metal", "tile", "slate"]:
+                if material in simple_input:
+                    value = material
+                    break
+            if not value and "shingle" in simple_input:
+                value = "asphalt"
+        
+        elif field_to_update == "timeline":
+            timeline_map = {
+                "standard": ["standard", "normal", "regular", "typical", "60 days", "2 months"],
+                "expedited": ["expedited", "rush", "urgent", "quick", "30 days", "1 month"],
+                "emergency": ["emergency", "immediate", "asap", "right away", "7 days", "week"]
+            }
+            for timeline, terms in timeline_map.items():
+                if any(term in simple_input for term in terms):
+                    value = timeline
+                    break
+        
+        elif field_to_update == "square_footage":
+            # Try to extract a number
+            import re
+            try:
+                # First try to find a number with sq ft mention
+                sq_ft_match = re.search(r'(\d[\d,]*)\s*(?:sq\.?\s*ft\.?|square\s*feet|square\s*foot)', simple_input)
+                if sq_ft_match:
+                    value = float(sq_ft_match.group(1).replace(',', ''))
+                else:
+                    # If no explicit mention, see if it's just a number
+                    num_match = re.search(r'(\d[\d,]*)', simple_input)
+                    if num_match:
+                        value = float(num_match.group(1).replace(',', ''))
+            except (ValueError, AttributeError):
+                pass
+        
+        # If we found a value through direct extraction, update it
+        if value is not None:
+            state.extracted_info[field_to_update] = value
+            print(f"Directly extracted {field_to_update}: {value} from simple response")
+    
+    # Also run the full extraction for comprehensive analysis
     extracted_data = extraction_chain.invoke({
         "history": history,
         "input": state.user_input
     })
     
-    # Update extracted info in state
+    # Update extracted info in state, only for fields that have values
     for field, value in extracted_data.dict(exclude_none=True).items():
         if value:  # Only update if value is not None or empty
             state.extracted_info[field] = value
+            print(f"Updated {field} to {value} from extraction chain")
     
     return state
 
@@ -237,7 +423,12 @@ def state_updater(state: GraphState) -> Dict[str, str]:
         Dictionary indicating the next node to transition to
     """
     # Add user input to conversation history
-    state.add_to_history("user", state.user_input)
+    if state.user_input.strip():  # Only add if non-empty
+        print(f"Adding user input to history: '{state.user_input}'")
+        state.add_to_history("user", state.user_input)
+    
+    # Store the user input temporarily for debugging
+    user_input_snapshot = state.user_input
     
     # Clear user input for next round
     state.user_input = ""
@@ -246,6 +437,7 @@ def state_updater(state: GraphState) -> Dict[str, str]:
     missing_info = get_missing_info(state.required_info, state.extracted_info)
     
     # Debug log
+    print(f"Processing user input: '{user_input_snapshot}'")
     print(f"Missing information: {missing_info}")
     print(f"Extracted so far: {state.extracted_info}")
     
@@ -465,7 +657,7 @@ def create_graph() -> StateGraph:
     return graph.compile()
 
 
-# Initialize the graph
+# Initialize the graph - this must be done at module level before the functions that use it
 estimation_graph = create_graph()
 
 
@@ -485,33 +677,82 @@ async def process_user_message(session_id: str, message: str, prev_state: Option
     Note:
         The graph execution terminates after generating a response.
         Each user message starts a new graph execution with persisted state.
-    """    # Either use previous state or create a new one
+    """
+    # Print message for debugging
+    print(f"Processing user message: '{message}'")
+    
+    # Either use previous state or create a new one
     if prev_state:
-        # Use the previous state but update the user input
+        # Use previous state but update the user input
         input_state = prev_state.copy()
         input_state.user_input = message
-        
-        # Only reset final_estimate for certain conditions:
-        # 1. If the user explicitly asks for a new estimate
-        # 2. If we're still collecting information and don't have an estimate yet
-        if prev_state.final_estimate:
-            # Keep the existing estimate for follow-up questions
-            regenerate_keywords = ["new estimate", "recalculate", "different", "change"]
-            if any(keyword in message.lower() for keyword in regenerate_keywords):
-                print("Resetting estimate based on user request for change")
-                input_state.final_estimate = None
-        # If we don't have a final estimate and the system said it's ready to prepare one, 
-        # don't reset it (it will be generated in this run)
-    else:        # Create a brand new state if none exists
+        print(f"Using existing state, updated user_input to: '{message}'")
+    else:
+        # Create a brand new state if none exists
         input_state = GraphState(
             session_id=session_id,
             user_input=message
         )
+        print(f"Created new state with user_input: '{message}'")
+    
+    # Check if this is likely a direct answer to a question about a specific field
+    if prev_state and len(message.strip().split()) <= 3 and prev_state.current_question:
+        question = prev_state.current_question.lower()
+        simple_input = message.strip().lower()
+        print(f"Detected simple response '{simple_input}' to question: '{question}'")
+        
+        # Try to perform direct extraction based on the question context
+        import re
+        if ('square footage' in question or 'area' in question) and re.search(r'\b\d+\b', simple_input):
+            # Extract number from simple response
+            match = re.search(r'(\d[\d,]*)', simple_input)
+            if match:
+                try:
+                    value = float(match.group(1).replace(',', ''))
+                    input_state.extracted_info['square_footage'] = value
+                    print(f"Pre-extracted square_footage value from direct response: {value}")
+                except ValueError:
+                    pass
+                    
+        elif 'location' in question or 'region' in question:
+            # Check for location keywords
+            for region in ["northeast", "midwest", "south", "west"]:
+                if region in simple_input:
+                    input_state.extracted_info['location'] = region
+                    print(f"Pre-extracted location value from direct response: {region}")
+                    break
+                    
+        elif 'material' in question:
+            # Check for material keywords
+            for material in ["asphalt", "metal", "tile", "slate"]:
+                if material in simple_input:
+                    input_state.extracted_info['material_type'] = material
+                    print(f"Pre-extracted material_type value from direct response: {material}")
+                    break
+            if "shingle" in simple_input and 'material_type' not in input_state.extracted_info:
+                input_state.extracted_info['material_type'] = "asphalt"
+                print(f"Pre-extracted material_type (shingles) as asphalt")
+                
+        elif 'timeline' in question or 'when' in question or 'how soon' in question:
+            # Check for timeline keywords
+            timeline_mapping = {
+                "standard": ["standard", "normal", "regular"],
+                "expedited": ["expedited", "rush", "urgent", "soon"],
+                "emergency": ["emergency", "immediate", "asap"]
+            }
+            for timeline, keywords in timeline_mapping.items():
+                if any(keyword in simple_input for keyword in keywords):
+                    input_state.extracted_info['timeline'] = timeline
+                    print(f"Pre-extracted timeline value from direct response: {timeline}")
+                    break
     
     # Run the graph with increased recursion limit to prevent Graph Recursion Error
     try:
-        result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 250})
-        return result
+        raw_result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 250})
+        # Convert raw graph output to GraphState for attribute access
+        new_state = GraphState.parse_obj(raw_result)
+        print(f"After processing, extracted info: {new_state.extracted_info}")
+        return new_state
     except Exception as e:
         # Log error but continue with input_state to prevent losing conversation
         print(f"Error during graph execution: {e}")
@@ -521,13 +762,14 @@ async def process_user_message(session_id: str, message: str, prev_state: Option
 
 
 # Function to handle image upload
-async def handle_image_upload(session_id: str, file_description: str, prev_state: Optional[GraphState] = None) -> GraphState:
+async def handle_image_upload(session_id: str, file_description: str, image_data: Optional[str] = None, prev_state: Optional[GraphState] = None) -> GraphState:
     """
     Handle an image upload event.
     
     Args:
         session_id: The session ID
         file_description: Description of the uploaded file
+        image_data: Base64 encoded image data
         prev_state: Optional previous graph state to preserve context
         
     Returns:
@@ -536,7 +778,8 @@ async def handle_image_upload(session_id: str, file_description: str, prev_state
     Note:
         The graph execution terminates after generating a response.
         Each user interaction starts a new graph execution with persisted state.
-    """    # Either use previous state or create a new one
+    """
+    # Either use previous state or create a new one
     if prev_state:
         # Use the previous state but update the user input
         input_state = prev_state.copy()
@@ -549,16 +792,31 @@ async def handle_image_upload(session_id: str, file_description: str, prev_state
         else:
             # Images might be for an existing estimate - don't reset unless necessary
             print("Keeping existing estimate while adding new image")
-    else:        # Create a brand new state if none exists
+    else:
+        # Create a brand new state if none exists
         input_state = GraphState(
             session_id=session_id,
             user_input=f"I've uploaded an image: {file_description}"
         )
     
+    # Create a new image reference
+    image_ref = f"image_{len(input_state.image_references) + 1}"
+    input_state.image_references.append(image_ref)
+    
+    # Store the base64 image data in the state if provided
+    if image_data:
+        print(f"Storing base64 image data for {image_ref}")
+        # Initialize the image analysis dict for this reference if it doesn't exist
+        if image_ref not in input_state.image_analysis:
+            input_state.image_analysis[image_ref] = {}
+            
+        # Store the image data
+        input_state.image_analysis[image_ref]["base64_data"] = image_data
+    
     # Run the graph with increased recursion limit to prevent Graph Recursion Error
     try:
-        result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 250})
-        return result
+        raw_result = await estimation_graph.ainvoke(input_state, {"recursion_limit": 250})
+        return GraphState.parse_obj(raw_result)
     except Exception as e:
         # Log error but continue with input_state to prevent losing conversation
         print(f"Error during graph execution: {e}")

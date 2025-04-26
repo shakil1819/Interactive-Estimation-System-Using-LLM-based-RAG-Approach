@@ -12,6 +12,7 @@ class FileUpload(BaseModel):
     """Model for file upload data."""
     session_id: str
     file_description: str = Field(default="Image uploaded")
+    image_data: Optional[str] = Field(default=None, description="Base64 encoded image data")
 
 
 class GraphState(BaseModel):
@@ -23,6 +24,7 @@ class GraphState(BaseModel):
     required_info: List[str] = Field(default_factory=list)
     current_question: str = Field(default="")
     image_references: List[str] = Field(default_factory=list)
+    image_analysis: Dict[str, str] = Field(default_factory=dict)  # Store image analysis results
     final_estimate: Optional[Dict[str, Any]] = Field(default=None)
     service_config: Dict[str, Any] = Field(default_factory=dict)
     next: Optional[str] = None
@@ -44,6 +46,7 @@ class GraphState(BaseModel):
             required_info=self.required_info.copy(),
             current_question=self.current_question,
             image_references=self.image_references.copy(),
+            image_analysis=self.image_analysis.copy(),
             final_estimate=self.final_estimate.copy() if self.final_estimate else None,
             service_config=self.service_config.copy(),
             next=self.next

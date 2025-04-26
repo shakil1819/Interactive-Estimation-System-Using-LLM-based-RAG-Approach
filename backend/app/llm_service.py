@@ -6,12 +6,17 @@ import os
 import warnings
 import re
 from typing import Dict, Any, List, Optional
+import json
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Suppress PydanticSchemaJson warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
 # Get API key from environment
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 def get_llm_response(prompt: str) -> str:
     """
@@ -94,6 +99,266 @@ def _extract_info_from_prompt(prompt: str) -> Dict[str, Any]:
             result["last_user_message"] = message_parts[1].split('"')[0].strip()
     
     print(f"Extracted from prompt: {result}")
+    return result
+
+
+def analyze_image(base64_image: str, image_name: str = "uploaded_image.jpg") -> str:
+    """
+    Analyze an image using GPT-4o.
+    
+    Args:
+        base64_image: Base64-encoded image data
+        image_name: Name of the image file
+        
+    Returns:
+        Analysis of the image as a string
+    """
+    try:
+        # Check if OPENAI_API_KEY is available
+        if OPENAI_API_KEY:
+            # Initialize OpenAI client
+            try:
+                import openai
+                client = openai.OpenAI(api_key=OPENAI_API_KEY)
+                
+                # Send image to OpenAI for analysis
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant for a construction estimation system. Analyze the uploaded image and provide relevant details about roofing, construction materials, property condition, and any visible damage or issues that could affect cost estimation."
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                { 
+                                    "type": "text", 
+                                    "text": f"Please analyze this image of a construction project (filename: {image_name}). Focus on identifying the type of roof, materials used, approximate square footage if possible, any visible damage, and overall condition." 
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}",
+                                    },
+                                },
+                            ],
+                        }
+                    ],
+                    max_tokens=3000
+                )
+                
+                # Extract and return the response text
+                return response.choices[0].message.content.strip()
+            except Exception as e:
+                print(f"Error with OpenAI API for image analysis: {e}")
+                return _mock_image_analysis(image_name)
+        else:
+            # Use mock implementation when API key is not available
+            return _mock_image_analysis(image_name)
+    except Exception as e:
+        print(f"Error analyzing image: {e}")
+        # Fall back to mock implementation
+        return _mock_image_analysis(image_name)
+
+
+def analyze_image_stream(base64_image: str, prompt: str) -> Any:
+    """
+    Analyze an image using GPT-4o and return a streaming response.
+    
+    Args:
+        base64_image: Base64-encoded image data
+        prompt: The text prompt to send with the image
+        
+    Returns:
+        A streaming response object from OpenAI
+    """
+    try:
+        # Check if OPENAI_API_KEY is available
+        if OPENAI_API_KEY:
+            # Initialize OpenAI client
+            try:
+                import openai
+                client = openai.OpenAI(api_key=OPENAI_API_KEY)
+                
+                # Send image to OpenAI for streaming analysis
+                stream = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant for a construction estimation system. Analyze the uploaded image and provide relevant details that could affect cost estimation."
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                { 
+                                    "type": "text", 
+                                    "text": prompt
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}",
+                                    },
+                                },
+                            ],
+                        }
+                    ],
+                    stream=True
+                )
+                
+                return stream
+            except Exception as e:
+                print(f"Error with OpenAI API for image streaming analysis: {e}")
+                return None
+        else:
+            # Use mock implementation when API key is not available
+            return None
+    except Exception as e:
+        print(f"Error analyzing image with streaming: {e}")
+        return None
+
+
+def _mock_image_analysis(image_name: str) -> str:
+    """
+    Generate a mock image analysis for testing/development without API keys.
+    
+    Args:
+        image_name: Name of the image file
+        
+    Returns:
+        A mock analysis based on the image name
+    """
+    # Generate a simulated analysis based on the image name
+    if "roof" in image_name.lower():
+        return "The image shows an asphalt shingle roof in moderate condition. The roof appears to be approximately 1,500-2,000 square feet. There are some signs of wear in the southern exposure, and a few shingles appear to be damaged or missing. The overall condition suggests the roof may be 10-15 years old. No significant structural issues are visible, though there is some buildup of debris in the gutters that should be addressed."
+    elif "damage" in image_name.lower():
+        return "The image shows significant damage to a section of the roof. There appears to be water damage extending to the underlying structure. The damaged area is approximately 200-300 square feet. The existing roofing material appears to be architectural asphalt shingles. This damage would require immediate attention and likely partial replacement of both the shingles and possibly some of the underlying deck."
+    elif "metal" in image_name.lower():
+        return "The image shows a metal roof in good condition. The roof appears to be a standing seam metal roof with a silver/gray finish. The approximate area is 1,800 square feet. The installation looks relatively recent, possibly within the last 5 years. There are no visible signs of damage or rust, and the flashing around the chimney and vents appears to be properly installed."
+    else:
+        return "The image shows a residential property with what appears to be a typical gabled roof. The roofing material looks like standard asphalt shingles in a dark gray or black color. The total roof area is approximately 1,500-2,000 square feet based on the overall house dimensions. The roof appears to be in moderate condition with no immediately obvious major damage or issues, though a closer inspection would be recommended for a complete assessment."
+
+
+def extract_info_from_image_analysis(analysis: str) -> Dict[str, Any]:
+    """
+    Extract structured information from image analysis text.
+    
+    Args:
+        analysis: The text analysis of an image
+        
+    Returns:
+        Dictionary of extracted information
+    """
+    # Initialize empty result
+    result = {
+        "service_type": None,
+        "square_footage": None,
+        "material_type": None,
+    }
+    
+    try:
+        # Check if OpenAI API key is available for better extraction
+        if OPENAI_API_KEY:
+            try:
+                import openai
+                client = openai.OpenAI(api_key=OPENAI_API_KEY)
+                
+                # Send prompt to OpenAI
+                prompt = f"""
+                Based on the following image analysis, extract these specific pieces of information:
+                1. Service type (e.g., roofing, siding, etc.)
+                2. Square footage (numerical value only)
+                3. Material type (e.g., asphalt, metal, tile, etc.)
+                
+                If a piece of information is not mentioned or cannot be determined, return null for that field.
+                
+                Image Analysis: {analysis}
+                
+                Format your response as a JSON object with these keys: service_type, square_footage, material_type
+                """
+                
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful extraction assistant that only responds with properly formatted JSON."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.0,
+                    response_format={"type": "json_object"}
+                )
+                
+                # Parse the JSON response
+                extracted_data = json.loads(response.choices[0].message.content)
+                
+                # Update result with extracted data
+                for key in result:
+                    if key in extracted_data and extracted_data[key]:
+                        result[key] = extracted_data[key]
+                
+                # Convert square footage to float if it's a number
+                if result["square_footage"] and isinstance(result["square_footage"], str):
+                    try:
+                        # Extract numerical value from string
+                        matches = re.findall(r'[\d,]+', result["square_footage"])
+                        if matches:
+                            result["square_footage"] = float(matches[0].replace(',', ''))
+                    except:
+                        # If conversion fails, leave as is
+                        pass
+                
+                return result
+            
+            except Exception as e:
+                print(f"Error with OpenAI API for info extraction: {e}")
+                return _extract_info_manually(analysis)
+        else:
+            # Use manual extraction when API key is not available
+            return _extract_info_manually(analysis)
+    except Exception as e:
+        print(f"Error extracting info from analysis: {e}")
+        return _extract_info_manually(analysis)
+
+
+def _extract_info_manually(analysis: str) -> Dict[str, Any]:
+    """
+    Manually extract information from analysis text when API is not available.
+    
+    Args:
+        analysis: The text analysis of an image
+        
+    Returns:
+        Dictionary of extracted information
+    """
+    # Initialize empty result
+    result = {
+        "service_type": None,
+        "square_footage": None,
+        "material_type": None,
+    }
+    
+    # Extract service type
+    if any(term in analysis.lower() for term in ["roof", "shingle", "asphalt", "metal", "tile", "slate"]):
+        result["service_type"] = "roofing"
+    
+    # Extract square footage
+    sq_ft_match = re.search(r'(\d[\d,]*)(?:\s*-\s*\d[\d,]*)?\s*square\s*feet', analysis.lower())
+    if sq_ft_match:
+        # Extract just the first number if there's a range
+        match_text = sq_ft_match.group(1).replace(',', '')
+        result["square_footage"] = float(match_text)
+    
+    # Extract material type
+    for material in ["asphalt", "metal", "tile", "slate"]:
+        if material in analysis.lower():
+            result["material_type"] = material
+            break
+    
+    # If asphalt isn't explicitly mentioned but shingles are, assume asphalt
+    if result["material_type"] is None and "shingle" in analysis.lower():
+        result["material_type"] = "asphalt"
+    
     return result
 
 
