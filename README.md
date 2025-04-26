@@ -5,7 +5,7 @@ A prototype interactive estimation system using FastAPI, Langgraph, and Streamli
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![alt text](frontend/image/image-2.png)
+
 ## 📋 Features
 
 - **Conversational Flow**: Natural language conversation to gather project requirements
@@ -136,6 +136,7 @@ To add new service types:
 This prototype has several limitations that could be addressed in future versions:
 
 - **State Management**: Currently uses in-memory storage, which is not persistent
+- **Image Analysis**: Only tracks image uploads without actual analysis
 - **Error Handling**: Basic error handling implemented
 - **Service Types**: Currently focused on roofing; could be expanded
 
