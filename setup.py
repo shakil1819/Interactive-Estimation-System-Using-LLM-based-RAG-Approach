@@ -20,8 +20,8 @@ setup(
         "streamlit>=1.23.0",
         "requests>=2.30.0",
     ],
-    author="Your Name",
-    author_email="your.email@example.com",
+    author="Shakil1819",
+    author_email="shakilmrf8@gmail.com",
     description="An interactive estimation system using FastAPI, Langgraph, and Streamlit",
     keywords="estimation, langchain, streamlit, fastapi, langgraph",    python_requires=">=3.11",
     extras_require={
